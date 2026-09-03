@@ -1,5 +1,7 @@
-package Components;
+package Components.Repository;
 
+import Components.Service.RespSerializer;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -8,6 +10,10 @@ import java.time.temporal.ChronoUnit;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static Constants.CommandConstants.BULK_NULL;
+import static Constants.CommandConstants.OK;
+
+@Slf4j
 @Component
 public class Store {
     public ConcurrentHashMap<String, Value> map;
@@ -27,10 +33,10 @@ public class Store {
         try{
             Value value = new Value(val, LocalDateTime.now(), LocalDateTime.MAX);
             map.put(key, value);
-            return "+OK\r\n";
+            return OK;
         } catch(Exception e) {
-            System.out.println(e.getMessage());
-            return "$-1\r\n";
+            log.error(e.getMessage());
+            return BULK_NULL;
         }
     }
 
@@ -40,10 +46,10 @@ public class Store {
             LocalDateTime exp = now.plus(expiryMilliSeconds, ChronoUnit.MILLIS);
             Value value = new Value(val, now, exp);
             map.put(key, value);
-            return "+OK\r\n";
+            return OK;
         } catch(Exception e) {
-            System.out.println(e.getMessage());
-            return "$-1\r\n";
+            log.error(e.getMessage());
+            return BULK_NULL;
         }
     }
 
@@ -54,13 +60,13 @@ public class Store {
 
             if(value.expiry.isBefore(now)){
                 map.remove(key);
-                return "$-1\r\n";
+                return BULK_NULL;
             } else {
                 return respSerializer.serializeBulkString(value.val);
             }
         } catch(Exception e) {
-            System.out.println(e.getMessage());
-            return "$-1\r\n";
+            log.error(e.getMessage());
+            return BULK_NULL;
         }
     }
 }
