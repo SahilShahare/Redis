@@ -80,7 +80,9 @@ public class RespDecoder extends ByteToMessageDecoder {
         }
     }
 
-    /** Looks at the next byte without consuming it. */
+    /**
+     * Looks at the next byte without consuming it.
+     */
     private char peek(ByteBuf in) {
         if (!in.isReadable()) throw NEED_MORE_DATA;
         return (char) in.getByte(in.readerIndex());

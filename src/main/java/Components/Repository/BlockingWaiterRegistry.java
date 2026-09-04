@@ -22,15 +22,20 @@ public class BlockingWaiterRegistry {
 
     // Registers ctx as waiting for an element to appear on key.
     public void addWaiter(String key, ChannelHandlerContext ctx, Double timeoutSeconds) {
-        BlockedClient blockedClient = new BlockedClient(ctx);
+        Deque<BlockedClient> queue = waiters.computeIfAbsent(key, k -> new ArrayDeque<>());
+        BlockedClient client = new BlockedClient(ctx);
+        queue.addLast(client);
         if (timeoutSeconds > 0.0) {
-            blockedClient.timeoutTask = ctx.executor().schedule(() -> {
-                if (blockedClient.completed.compareAndSet(false, true)) {
+            long delayMicros = Math.round(timeoutSeconds * 1_000_000);
+            client.timeoutTask = ctx.executor().schedule(() -> {
+                if (queue.remove(client)) {
+                    if (queue.isEmpty()) {
+                        waiters.remove(key);
+                    }
                     ctx.writeAndFlush(Unpooled.copiedBuffer(NULL_ARRAY, StandardCharsets.UTF_8));
                 }
-            }, Math.round(timeoutSeconds * 1e6), TimeUnit.MICROSECONDS);
+            }, delayMicros, TimeUnit.MICROSECONDS);
         }
-        waiters.computeIfAbsent(key, k -> new ArrayDeque<>()).addLast(blockedClient);
     }
 
     public boolean hasWaiters(String key) {
@@ -48,18 +53,26 @@ public class BlockingWaiterRegistry {
         if (q.isEmpty()) {
             waiters.remove(key);
         }
+        if (client.timeoutTask != null) {
+            client.timeoutTask.cancel(false);
+        }
         return client;
     }
 
     public void removeWaiter(ChannelHandlerContext ctx) {
-        waiters.values().forEach(q -> q.removeIf(client -> client.ctx == ctx));
+        waiters.values().forEach(q -> q.removeIf(client -> {
+            boolean match = client.ctx == ctx;
+            if (match && client.timeoutTask != null) {
+                client.timeoutTask.cancel(false);
+            }
+            return match;
+        }));
         waiters.values().removeIf(Deque::isEmpty);
     }
 
     public static class BlockedClient {
         public final ChannelHandlerContext ctx;
         public ScheduledFuture<?> timeoutTask;
-        public volatile AtomicBoolean completed = new AtomicBoolean(false);
 
         BlockedClient(ChannelHandlerContext ctx) {
             this.ctx = ctx;

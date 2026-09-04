@@ -1,16 +1,7 @@
 package Components.Repository;
 
-import java.time.LocalDateTime;
+import Components.Infrastructure.Type;
 
-public class Value {
-    public String val;
-    public LocalDateTime created;
-    public LocalDateTime expiry;
-
-    public Value(String val, LocalDateTime created, LocalDateTime expiry) {
-        this.val = val;
-        this.created = created;
-        this.expiry = expiry;
-    }
-
+public interface Value {
+    Type getType();
 }
